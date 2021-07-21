@@ -112,6 +112,24 @@ extern "C" {
                            CO_CONFIG_GLOBAL_FLAG_OD_DYNAMIC)
 #endif
 
+#ifndef CO_CONFIG_CANFD
+#define CO_CONFIG_CANFD
+#endif
+
+#define CO_CONFIG_USDO_SRV (CO_CONFIG_USDO_SRV_ENABLE | \
+                            CO_CONFIG_GLOBAL_FLAG_CALLBACK_PRE | \
+                            CO_CONFIG_GLOBAL_FLAG_TIMERNEXT)
+
+
+#ifndef CO_CONFIG_USDO_CLI
+#define CO_CONFIG_USDO_CLI (CO_CONFIG_USDO_CLI_ENABLE | \
+                           CO_CONFIG_USDO_CLI_LOCAL | \
+                           CO_CONFIG_GLOBAL_FLAG_CALLBACK_PRE | \
+                           CO_CONFIG_GLOBAL_FLAG_TIMERNEXT)
+
+#define CO_CONFIG_USDO_CLI_BUFFER_SIZE 1000
+#endif
+
 #ifndef CO_CONFIG_TIME
 #define CO_CONFIG_TIME (CO_CONFIG_TIME_ENABLE | \
                         CO_CONFIG_TIME_PRODUCER | \
@@ -128,13 +146,14 @@ extern "C" {
 
 #ifndef CO_CONFIG_GTW
 #define CO_CONFIG_GTW (CO_CONFIG_GTW_ASCII | \
-                       CO_CONFIG_GTW_ASCII_SDO | \
+                       CO_CONFIG_GTW_ASCII_USDO | \
                        CO_CONFIG_GTW_ASCII_NMT | \
                        CO_CONFIG_GTW_ASCII_LSS | \
                        CO_CONFIG_GTW_ASCII_LOG | \
                        CO_CONFIG_GTW_ASCII_ERROR_DESC | \
                        CO_CONFIG_GTW_ASCII_PRINT_HELP | \
                        CO_CONFIG_GTW_ASCII_PRINT_LEDS)
+// TODO                      CO_CONFIG_GTW_ASCII_SDO
 #define CO_CONFIG_GTW_BLOCK_DL_LOOP 3
 #define CO_CONFIG_GTWA_COMM_BUF_SIZE 2000
 #define CO_CONFIG_GTWA_LOG_BUF_SIZE 10000
@@ -291,7 +310,6 @@ typedef struct {
     volatile bool_t syncFlag;   /* info about transmit message */
     int can_ifindex;            /* CAN Interface index to use */
 } CO_CANtx_t;
-
 
 /* Max COB ID for standard frame format */
 #define CO_CAN_MSG_SFF_MAX_COB_ID (1 << CAN_SFF_ID_BITS)

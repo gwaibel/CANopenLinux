@@ -37,6 +37,8 @@ SOURCES = \
 	$(CANOPEN_SRC)/305/CO_LSSslave.c \
 	$(CANOPEN_SRC)/305/CO_LSSmaster.c \
 	$(CANOPEN_SRC)/309/CO_gateway_ascii.c \
+	$(CANOPEN_SRC)/1301/CO_USDOserver.c \
+	$(CANOPEN_SRC)/1301/CO_USDOclient.c \
 	$(CANOPEN_SRC)/storage/CO_storage.c \
 	$(CANOPEN_SRC)/extra/CO_trace.c \
 	$(CANOPEN_SRC)/CANopen.c \
