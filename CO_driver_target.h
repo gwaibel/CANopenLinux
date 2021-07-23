@@ -243,9 +243,13 @@ typedef double                  float64_t;
 /* CAN receive message structure as aligned in socketCAN. */
 typedef struct {
     uint32_t ident;
-    uint8_t DLC;
+    uint8_t DLC; /* TODO: For CANFD this is the length, not the DLC => rename member to "len" */
     uint8_t padding[3];
+#ifdef CO_CONFIG_CANFD
+    uint8_t data[64];
+#else
     uint8_t data[8];
+#endif
 } CO_CANrxMsg_t;
 
 /* Access to received CAN message */
@@ -276,9 +280,13 @@ typedef struct {
 /* Transmit message object as aligned in socketCAN. */
 typedef struct {
     uint32_t ident;
-    uint8_t DLC;
+    uint8_t DLC; /* TODO: For CANFD this is the length, not the DLC => rename member to "len" */
     uint8_t padding[3];     /* ensure alignment */
+#ifdef CO_CONFIG_CANFD
+    uint8_t data[64];
+#else
     uint8_t data[8];
+#endif
     volatile bool_t bufferFull;
     volatile bool_t syncFlag;   /* info about transmit message */
     int can_ifindex;            /* CAN Interface index to use */

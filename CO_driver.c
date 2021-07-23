@@ -50,6 +50,11 @@ static CO_ReturnError_t CO_CANmodule_addInterface(CO_CANmodule_t *CANmodule,
                                                   int can_ifindex);
 #endif
 
+#ifdef CO_CONFIG_CANFD
+#define CO_MTU   CANFD_MTU
+#else
+#define CO_MTU   CAN_MTU
+#endif
 
 #if CO_DRIVER_MULTI_INTERFACE > 0
 
@@ -329,6 +334,16 @@ CO_ReturnError_t CO_CANmodule_addInterface(CO_CANmodule_t *CANmodule,
         return CO_ERROR_SYSCALL;
     }
 
+#ifdef CO_CONFIG_CANFD
+    /* enable CAN-FD frames */
+    tmp = 1;
+    ret = setsockopt(interface->fd, SOL_CAN_RAW, CAN_RAW_FD_FRAMES, &tmp, sizeof(tmp));
+    if(ret < 0){
+        log_printf(LOG_DEBUG, DBG_ERRNO, "setsockopt(can_raw_fd_frames)");
+        return CO_ERROR_SYSCALL;
+    }
+#endif
+
     //todo - modify rx buffer size? first one needs root
     //ret = setsockopt(fd, SOL_SOCKET, SO_RCVBUFFORCE, (void *)&bytes, sLen);
     //ret = setsockopt(fd, SOL_SOCKET, SO_RCVBUF, (void *)&bytes, sLen);
@@ -605,7 +620,7 @@ static CO_ReturnError_t CO_CANCheckSendInterface(
 
     do {
         errno = 0;
-        n = send(interface->fd, buffer, CAN_MTU, MSG_DONTWAIT);
+        n = send(interface->fd, buffer, CO_MTU, MSG_DONTWAIT);
         if (errno == EINTR) {
             /* try again */
             continue;
@@ -622,12 +637,12 @@ static CO_ReturnError_t CO_CANCheckSendInterface(
 #endif
             return CO_ERROR_TX_BUSY;
         }
-        else if (n != CAN_MTU) {
+        else if (n != CO_MTU) {
             break;
         }
     } while (errno != 0);
 
-    if(n != CAN_MTU){
+    if (n != CO_MTU) {
 #if CO_DRIVER_ERROR_REPORTING > 0
         interface->errorhandler.CANerrorStatus |= CO_CAN_ERRTX_OVERFLOW;
 #endif
@@ -734,8 +749,8 @@ CO_ReturnError_t CO_CANsend(CO_CANmodule_t *CANmodule, CO_CANtx_t *buffer)
     }
 
     errno = 0;
-    ssize_t n = send(interface->fd, buffer, CAN_MTU, MSG_DONTWAIT);
-    if (errno == 0 && n == CAN_MTU) {
+    ssize_t n = send(interface->fd, buffer, CO_MTU, MSG_DONTWAIT);
+    if (errno == 0 && n == CO_MTU) {
         /* success */
         if (buffer->bufferFull) {
             buffer->bufferFull = false;
@@ -818,7 +833,11 @@ void CO_CANmodule_process(CO_CANmodule_t *CANmodule)
 static CO_ReturnError_t CO_CANread(
         CO_CANmodule_t         *CANmodule,
         CO_CANinterface_t      *interface,
+#ifdef CO_CONFIG_CANFD
+        struct canfd_frame     *msg,        /* CAN message, return value */
+#else
         struct can_frame       *msg,        /* CAN message, return value */
+#endif
         struct timespec        *timestamp)  /* timestamp of CAN message, return value */
 {
     int32_t n;
@@ -842,7 +861,7 @@ static CO_ReturnError_t CO_CANread(
     msghdr.msg_flags = 0;
 
     n = recvmsg(interface->fd, &msghdr, 0);
-    if (n != CAN_MTU) {
+    if ((n != CAN_MTU) && (n != CANFD_MTU)) {
 #if CO_DRIVER_ERROR_REPORTING > 0
         interface->errorhandler.CANerrorStatus |= CO_CAN_ERRRX_OVERFLOW;
 #endif
@@ -880,7 +899,11 @@ static CO_ReturnError_t CO_CANread(
 /* find msg inside rxArray and call corresponding CANrx_callback **************/
 static int32_t CO_CANrxMsg(                 /* return index of received message in rxArray or -1 */
         CO_CANmodule_t        *CANmodule,
-        struct can_frame      *msg,         /* CAN message input */
+#ifdef CO_CONFIG_CANFD
+        struct canfd_frame    *msg,        /* CAN message, return value */
+#else
+        struct can_frame      *msg,        /* CAN message, return value */
+#endif
         CO_CANrxMsg_t         *buffer)      /* If not NULL, msg will be copied to buffer */
 {
     int32_t retval;
@@ -929,6 +952,12 @@ bool_t CO_CANrxFromEpoll(CO_CANmodule_t *CANmodule,
                          CO_CANrxMsg_t *buffer,
                          int32_t *msgIndex)
 {
+#ifdef CO_CONFIG_CANFD
+    struct canfd_frame msg;
+#else
+    struct can_frame msg;
+#endif
+
     if (CANmodule == NULL || ev == NULL || CANmodule->CANinterfaceCount == 0) {
         return false;
     }
@@ -939,7 +968,6 @@ bool_t CO_CANrxFromEpoll(CO_CANmodule_t *CANmodule,
 
         if (ev->data.fd == interface->fd) {
             if ((ev->events & (EPOLLERR | EPOLLHUP)) != 0) {
-                struct can_frame msg;
                 /* epoll detected close/error on socket. Try to pull event */
                 errno = 0;
                 recv(ev->data.fd, &msg, sizeof(msg), MSG_DONTWAIT);
@@ -947,7 +975,6 @@ bool_t CO_CANrxFromEpoll(CO_CANmodule_t *CANmodule,
                            ev->events, strerror(errno));
             }
             else if ((ev->events & EPOLLIN) != 0) {
-                struct can_frame msg;
                 struct timespec timestamp;
 
                 /* get message */
@@ -959,7 +986,7 @@ bool_t CO_CANrxFromEpoll(CO_CANmodule_t *CANmodule,
                     if (msg.can_id & CAN_ERR_FLAG) {
                         /* error msg */
 #if CO_DRIVER_ERROR_REPORTING > 0
-                        CO_CANerror_rxMsgError(&interface->errorhandler, &msg);
+                        CO_CANerror_rxMsgError(&interface->errorhandler, (struct can_frame *)&msg);
 #endif
                     }
                     else {
